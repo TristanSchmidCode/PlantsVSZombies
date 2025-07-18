@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>PlantsVSZombies</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Folder Include="Entetiys\Attacks\" />
+    <Folder Include="Images\Attacks\" />
+    <Folder Include="Images\Special\" />
+    <Folder Include="Images\Other\" />
+    <Folder Include="Images\Suns\" />
+    <Folder Include="Images\Plants\" />
+    <Folder Include="Images\Zombies\" />
+    <Folder Include="Properties\" />
+  </ItemGroup>
+
+</Project>
