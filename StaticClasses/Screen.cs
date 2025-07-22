@@ -17,6 +17,10 @@ public static class Screen
     //changes the background
     public static void ChangeBackground(Background background)
     {
+        if (overTheTopLayerID != null) {
+            RemoveFromAllPixels(overTheTopLayerID.Value);
+            overTheTopLayerID = null;
+        }
         if (background == Background.grassFight)
             GrassMap();
         else if (background == Background.Map1)
@@ -24,7 +28,7 @@ public static class Screen
         else if (background == Background.MainMenue)
             MainMenue();
         else if (background == Background.SettingMenue)
-            SettingsMenue();
+            OverTheTopBackGround(Colors.White);
         else if (background == Background.PureBlack)
             PureBlackMenue();
         PrintMap();
@@ -72,12 +76,27 @@ public static class Screen
         }
     }
 
+    public static bool IsOutOfBounds(Position pos)
+    {
+        return pos.X < 0 || pos.X >= BordInfo.MapLeft || pos.Y < 0 || pos.Y >= BordInfo.MapUp;
+    }
     /// <returns>Returns the <see cref="Pixel"/> in a specific position in the stored <see cref="PixelMap"/></returns>
+    /// <exception cref="IndexOutOfRangeException"></exception>
     public static Pixel GetPixel(this Position pos )
     {
         return _map[pos.X,pos.Y];
     }
-    
+    public static bool TryGetPixel(this Position pos, out Pixel? pixel)
+    {
+        if (IsOutOfBounds(pos))
+        {
+            pixel = null;
+            return false;
+        }
+        pixel = _map[pos.X, pos.Y];
+        return true;
+    }
+
     public static void AddToEach(LayerID layer, PixelType pixel)
     {
         foreach (Pixel pix in _map)
@@ -97,15 +116,14 @@ public static class Screen
     {
         _map = new Pixel[BordInfo.MapLeft, BordInfo.MapUp];
 
-        for (int i = 0; i < _map.GetLongLength(0); i++)
+        for (int i = 0; i < _map.GetLongLength(0); i++) {
+        for (int j = 0; j < _map.GetLongLength(1); j++)
         {
-            for (int j = 0; j < _map.GetLongLength(1); j++)
-            {
-                if (j < 8)
+            if (j < 8)
                 {
                     _map[i, j] = new(new(Colors.Gray), (i, j), 7);
                 }
-                else
+            else
                 {
                     ColorType green = Colors.Green;
                     Random rnd = new();
@@ -124,78 +142,81 @@ public static class Screen
                     else
                         _map[i, j] = new(green, (i, j), 15);
                 }
-            }
+        }
         }
     }
-    //creates a new map, for the settings menue
-    static void SettingsMenue()
-    {
-        _map = new Pixel[BordInfo.MapLeft, BordInfo.MapUp];
 
-        for (int i = 0; i < _map.GetLongLength(0); i++)
+    static LayerID? overTheTopLayerID;
+    //creates a new map, for the settings menue
+    static void OverTheTopBackGround(Colors color)
+    {
+        
+        LayerID layer = new(Layers.Inermenue);
+        PixelType border = new(Colors.Gray);
+        PixelType center = new(Colors.White);
+
+        for (int i = 0; i < _map.GetLongLength(0); i++) {
+        for (int j = 0; j < _map.GetLongLength(1); j++)
         {
-            for (int j = 0; j < _map.GetLongLength(1); j++)
-            {
-                if (j < 8)
-                {
-                    _map[i, j] = new(new(Colors.Gray), (i, j), 7);
-                }
-                else
-                {
-                    _map[i, j] = new(new(Colors.White), (i, j), 4);
-                }
-            }
+            if (j < 8)
+                _map[i, j].AddPixel(layer, GradientType.ShadeRandom(border, 7));
+            else
+                _map[i, j].AddPixel(layer, GradientType.ShadeRandom(center, 7));
         }
+        }
+        overTheTopLayerID = layer;
+    }
+
+    public static void CloseOverTheTopBackGround()
+    {
+        if (overTheTopLayerID == null)
+            return;
+        RemoveFromAllPixels(overTheTopLayerID.Value);
+        overTheTopLayerID = null;
     }
     static void GrassMap()
     {
         _map = new Pixel[BordInfo.MapLeft, BordInfo.MapUp];
-        for (int i = 0; i < _map.GetLongLength(0); i++)
-        {
-            for (int j = 0; j < _map.GetLongLength(1); j++)
+        for (int i = 0; i < _map.GetLongLength(0); i++) {   
+        for (int j = 0; j < _map.GetLongLength(1); j++) {
+            //order specific
+            //for top border
+            if (j <= 4)
+                _map[i, j] = new(new(Colors.Gray), (i, j), 7, Layers.Forground);
+            //for left and right border
+            else if (i < BordInfo.LeftBorder || i >= (8, 0).PlantPosition().X + 8)
+                _map[i, j] = new(new(Colors.Gray), (i, j), 7, Layers.Forground);
+            //For watter
+            else if (j == 5 + waterLevel || j == 6 + waterLevel * 2
+                || j == 7 + waterLevel * 3)
+                _map[i, j] = new(new(Colors.Blue), (i, j), 15);
+            //for bottem border
+            else if (j >= 8 + waterLevel * 4)
+                _map[i, j] = new(new(Colors.Gray), (i, j), 7, Layers.Forground);
+            else
             {
-                //order specific
-                //for top border
-                if (j <= 4)
-                    _map[i, j] = new(new(Colors.Gray), (i, j), 7, Layers.Forground);
-                //for left and right border
-                else if (i < BordInfo.LeftBorder || i >= (8, 0).PlantPosition().X + 8)
-                    _map[i, j] = new(new(Colors.Gray), (i, j), 7, Layers.Forground);
-                //For watter
-                else if (j == 5 + waterLevel || j == 6 + waterLevel * 2
-                    || j == 7 + waterLevel * 3)
-                    _map[i, j] = new(new(Colors.Blue), (i, j), 15);
-                //for bottem border
-                else if (j >= 8 + waterLevel * 4)
-                    _map[i, j] = new(new(Colors.Gray), (i, j), 7, Layers.Forground);
-                else
+                ColorType green = new(Colors.Green);
+                GradientType darker = new(0, -30, 0);
+                if (int.IsOddInteger((i - BordInfo.LeftBorder) / 15) && int.IsOddInteger((j + 3) / 8))
+                    green = darker.Shade(green);
+                if (int.IsEvenInteger((i - BordInfo.LeftBorder) / 15) && int.IsEvenInteger((j + 3) / 8))
+                    green = darker.Shade(green);
+                Random rnd = new();
+                if (rnd.Next(0, 100) == 0)
                 {
-                    ColorType green = new(Colors.Green);
-                    GradientType darker = new(0, -30, 0);
-
-                    if (int.IsOddInteger((i - BordInfo.LeftBorder) / 15) && int.IsOddInteger((j + 3) / 8))
-                        green = darker.Shade(green);
-                    if (int.IsEvenInteger((i - BordInfo.LeftBorder) / 15) && int.IsEvenInteger((j + 3) / 8))
-                        green = darker.Shade(green);
-
-                    Random rnd = new();
-                    if (rnd.Next(0, 100) == 0)
-                    {
-                        ColorType other;
-                        if (rnd.Next(0, 2) == 1)
-                            other = new(200, 50, 0);
-                        else
-                            other = Colors.Yellow;
-                        char[] symbols = ['●', '^'];
-                        PixelType p = new(green, other, symbols[rnd.Next(0, 2)]);
-                        _map[i, j] = new(p, (i, j), 15);
-
-                    }
+                    ColorType other;
+                    if (rnd.Next(0, 2) == 1)
+                        other = new(200, 50, 0);
                     else
-                        _map[i, j] = new(green, (i, j), 15);
+                        other = Colors.Yellow;
+                    char[] symbols = ['●', '^'];
+                    PixelType p = new(green, other, symbols[rnd.Next(0, 2)]);
+                    _map[i, j] = new(p, (i, j), 15);
                 }
-
-            }
+                else
+                    _map[i, j] = new(green, (i, j), 15);
+            }         
+        }
         }
     }
     static void PureBlackMenue()
@@ -269,13 +290,20 @@ public class Pixel
         //somehting at the same time, they will be foreced to wait
         lock(_writeLock)
         {
-            Console.SetCursorPosition(_pos.X, _pos.Y);
-            PixelType pixel = _topPixel.Pixel;
-            foreach (GradientType grade in _gradient.Values)
+            try
             {
-                pixel = grade.Shade(pixel);
+                Console.SetCursorPosition(_pos.X, _pos.Y);
+                PixelType pixel = _topPixel.Pixel;
+                foreach (GradientType grade in _gradient.Values)
+                {
+                    pixel = grade.Shade(pixel);
+                }
+                Console.Write(pixel);
             }
-            Console.Write(pixel);
+            catch (Exception)
+            {
+
+            }
         }        
         
     }

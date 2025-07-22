@@ -9,35 +9,13 @@ using static PlantsVSZombies.Scene;
 
 namespace PlantsVSZombies;
 
-public class Settings : Intoractible
-{
-    public Settings(Position pos) : base(pos)
-    {
-        frame.ChangeImage(new ImageType(Layers.Frame, "Settings"), shown);
-        Show();
-    }
-    public override bool BeActedOn<T>(T d)
-    {
-        if (d is Pressed f)
-        {
-            if (f.situation == MenueType.FightSettings)
-                ChangeMenue(MenueType.FightSettings);
-            else if (f.situation != MenueType.Fight)
-                ChangeMenue(MenueType.Settings);
-            return true;
-        }
-        return false;
-    }
-    public override void TakeAction()
-    {
-        throw new NotImplementedException();
-    }
-}
 public class SettingIntor: Intoractible 
 {
-    public SettingIntor(Position pos, Position fromCenter, OnIncrease d, Layers layer) : base(pos,fromCenter, layer)
+    public SettingIntor(Position pos, Position fromCenter, OnIncrease @delegate, Layers layer, 
+        Image? symol = null, Image? frame = null)
+        : base(pos, fromCenter, layer,symol,frame)
     {
-        increase = d;
+        increase = @delegate;
         Show();
     }
     readonly OnIncrease increase;
@@ -45,20 +23,21 @@ public class SettingIntor: Intoractible
     public override bool BeActedOn<T>(T d)
     {
         if (d is Pressed)
-            return false; 
-        else if (d is Move move)
         {
-            if (move.direction == ConsoleKey.LeftArrow | move.direction == ConsoleKey.UpArrow)
+            Cursor.TakeKeybordFocus(this);
+            
+            return true;
+        }
+        else if (d is KeyPress move)
+        {
+            if (move.key == ConsoleKey.LeftArrow | move.key == ConsoleKey.UpArrow)
                 increase.Invoke(true);
-            else
+            else if (move.key == ConsoleKey.RightArrow | move.key == ConsoleKey.DownArrow)
                 increase.Invoke(false);
             return true;
         }
+
         throw new Exception();
-    }
-    public override void TakeAction()
-    {
-        throw new NotImplementedException();
     }
 }
 

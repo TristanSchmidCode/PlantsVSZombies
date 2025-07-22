@@ -1,6 +1,7 @@
-﻿namespace PlantsVSZombies;
+﻿using Microsoft.VisualBasic;
 
-public abstract class Intoractible:IEntity
+namespace PlantsVSZombies;
+public abstract class Intoractible
 {
     public static readonly List<Intoractible> all = [];
     
@@ -10,7 +11,7 @@ public abstract class Intoractible:IEntity
         float Priority = float.MaxValue;
         foreach (Intoractible d in all)
         {
-            float? DSD = d.MovmentPriority(Cursor.Current.frame.Pos, direction);
+            float? DSD = d.MovmentPriority(Cursor.Target.Frame.Pos, direction);
             if (DSD == null)
                 continue;
             if (DSD < Priority)
@@ -25,22 +26,22 @@ public abstract class Intoractible:IEntity
 
     
     public ImageHaver Symol;
-    public ImageHaver frame;
+    public ImageHaver Frame;
     
-    public  LayerID Layer { get { return frame.Layer; } }
-    public bool shown = false;
+    public  LayerID Layer { get { return Frame.Layer; } }
+    public bool shown = true;
     //the posiiton from the its center which the cursor should move to. 
     public Position Displacement { get; protected set; }
 
     public virtual void Show()
     {
-        frame?.PrintImage();
+        Frame?.PrintImage();
         Symol?.PrintImage();
         shown = true;
     }
     public virtual void Hide()
     {
-        frame?.RemoveImage();
+        Frame?.RemoveImage();
         Symol?.RemoveImage();
         shown = false;
     }
@@ -54,8 +55,8 @@ public abstract class Intoractible:IEntity
 
         int c_Left = currentPos.X;
         int c_Up = currentPos.Y;
-        int Left = frame.Pos.X;
-        int Up = frame.Pos.Y;
+        int Left = Frame.Pos.X;
+        int Up = Frame.Pos.Y;
         float leftDifrence = Math.Abs(c_Left - Left);
         float upDifrence = Math.Abs(c_Up - Up);
 
@@ -95,37 +96,34 @@ public abstract class Intoractible:IEntity
         }
         return Priority;
     }
-    public abstract void TakeAction();
     public abstract bool BeActedOn<T>(T d) where T : IAction;
     public virtual void Destroy()
     {
-        AllEntitys.RemoveEntities(this);
         all.Remove(this);
-        frame.RemoveImage();
+        shown = false;
+        Frame.RemoveImage();
         Symol.RemoveImage();
     }
-    public Intoractible(Position pos)
-    {
-        PlantSpace.Nothing();
-        frame = new(Layers.Frame, pos);
-        Symol = new(Layers.InerFrame, pos);
+    Intoractible() {
         all.Add(this);
     }
-    public Intoractible(Position pos, Position fromCenter)
+    public Intoractible(Position pos): this(pos, new Position(0,0)) { }
+    public Intoractible(Position pos, Position fromCenter) : this()
     {
-        PlantSpace.Nothing();
-        frame = new(Layers.Frame, pos);
+        Frame = new(Layers.Frame, pos);
         Symol = new(Layers.InerFrame, pos);
-        all.Add(this);
         Displacement = fromCenter;
+        Show();
     }
-    public Intoractible(Position pos, Position fromCenter,Layers layer)
-    {
-        PlantSpace.Nothing();
-        Symol = new(layer, pos);
-        frame = new(layer, pos);
-        all.Add(this);
+    public Intoractible(Position pos, Position fromCenter,Layers layer) : 
+        this(pos,fromCenter,layer, null,null) { }
+
+    public Intoractible(Position pos, Position fromCenter, Layers layer, Image? symol, Image? frame) : this()
+    {  
+        Symol = new ImageHaver(symol ?? new Image(), layer, pos);
+        Frame = new ImageHaver(frame ?? new Image(), layer, pos);     
         Displacement = fromCenter;
+        Show();
     }
 
 }

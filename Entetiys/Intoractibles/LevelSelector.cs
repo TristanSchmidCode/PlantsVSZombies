@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -6,6 +7,7 @@ using System.Numerics;
 using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
+using static PlantsVSZombies.LevelHanderler;
 
 
 
@@ -14,187 +16,150 @@ namespace PlantsVSZombies;
 public readonly struct LevelType
 {
     // a list of levels that have been made
-    public static readonly Position[] CompleatedLevels =[
-        (1,1),
-        (1,2),
-        (1,3),
-        ];
+    
+    readonly (int, int) value;
+    public int Map => value.Item1;
+    public int Level => value.Item2;
     public Fight GetLevel()
     {
-        return level switch
+        return value switch
         {
             (1, 1) => new _1_1_(),
             (1, 2) => new _1_2_(),
             (1, 3) => new _1_3_(),
-
             _ => throw new Exception(),
-        } ;
+        };
     }
-    public readonly (int,int) level;
 
 
     /// <summary>
     /// creates a new <see cref="LevelType"/>
-    /// Throws <see cref="ArgumentOutOfRangeException"/> if the level doesn't exist
     /// </summary>
     /// <param name="level"></param>
     /// <exception cref="ArgumentOutOfRangeException"></exception>
-    public LevelType((int,int) level)
+    public LevelType((int, int) level)
     {
-        if (CompleatedLevels.Contains(level))
-            this.level = level;
-        else
-            throw new ArgumentOutOfRangeException(nameof(level),"The level has not been made");
+        this.value = level;
+      
     }
-    
-
-    public static bool operator ==(LevelType left, LevelType right)
+    public LevelType(int map, int level) : this((map, level))
     {
-        if (left.level.Equals(right.level))
-            return true;
-        else
-            return false;
-    }
-    public static bool operator !=(LevelType left, LevelType right)
-    {
-        return !(left == right);
-    }
-    public static LevelType operator +(LevelType left, int right)
-    {
-        //means that if there were other worlds, it would cicle into it
-        (int,int) d = left.level;
-        if (CompleatedLevels.Contains(d.Add((0, right))))
-            return new(d.Add((0, 1)));
-        else if (CompleatedLevels.Contains((d.Item1 + 1, 1)))
-            return new((d.Item1 + 1, 1));
-
-        return left;
         
     }
-    public override bool Equals(object? obj)
-    {
-        if (obj is LevelType level)
-        {
-            return (level == this);
-        }
-        else
-            return false;
-    }
 
-    public override int GetHashCode()
+
+    public static bool operator ==(LevelType left, LevelType right) => left.value.Equals(right.value);
+
+    public static bool operator !=(LevelType left, LevelType right) => !(left == right);
+
+    public static LevelType operator +(LevelType left, int right)
     {
-        return base.GetHashCode();
+        if (right > 1 || right < 0)
+            throw new NotImplementedException("The right operand must be 1 or 0 right now");
+        //means that if there were other worlds, it would cicle into it
+        LevelType newLevel = new(left.Map, left.Level + right);
+        LevelHanderler.LevelState state = Scene.Instance.LevelHanderler[newLevel];
+        if (state != LevelHanderler.LevelState.DoesntExist)
+            return newLevel;
+
+        newLevel = new(left.Map +right, 0);
+
+        if (state != LevelHanderler.LevelState.DoesntExist)
+            return newLevel;
+
+        return left;
+    }
+    public bool IsValid() => Scene.Instance.LevelHanderler[this] != LevelHanderler.LevelState.DoesntExist;
+    public readonly override bool Equals(object? obj) => obj is LevelType level && this ==level;
+    public override int GetHashCode() => base.GetHashCode();
+}
+public class LevelSelector : Intoractible
+{    
+    public readonly LevelType level;
+    //wether or not youve beaten/unlocked the level
+    public override bool BeActedOn<T>(T d)
+    {
+        if (!Scene.Instance.LevelHanderler.HasUnlocked(level))
+            return false;
+        if (d is not Pressed)
+            return false;
+        Scene.Instance.SendMessage(Message.OpenFightMenue, level);
+        return true;
+    }
+    public LevelSelector(Position pos, LevelType level, LevelHanderler.LevelState state) : base(pos)
+    {
+        Displacement = (0, 2);
+        this.level = level;
+
+        switch (state)
+        {
+            case LevelState.Locked:
+                Frame.ChangeImage(Image.GetImage(Layers.Frame, "LevelLocked"), shown);
+                break;
+            case LevelState.Unlocked:
+                Frame.ChangeImage(Image.GetImage(Layers.Frame, "LevelUnlocked"), shown);
+                break;
+            case LevelState.Compleated:
+                Frame.ChangeImage(Image.GetImage(Layers.Frame, "LevelCompleated"), shown);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(state), "Invalid state for level selector");
+        }
     }
 }
-internal class LevelSelector : Intoractible
-{
-    public enum State
+
+public class LevelHanderler
+{   
+
+    public enum LevelState
     {
         Locked,
         Unlocked,
         Compleated,
+        DoesntExist,
+    }
+    static readonly Dictionary<LevelType, Func<Fight>> LevelToFight 
+        = new(){
+        [new((1, 1))] = () => new _1_1_(),
+        [new((1, 2))] = () => new _1_2_(),
+        [new((1, 3))] = () => new _1_3_(),
+    };
+    public static Fight CreateFight(LevelType level) {
+        if (!LevelToFight.ContainsKey(level))
+            throw new KeyNotFoundException($"The level {level} does not exist in the level handler.");
+        return LevelToFight[level]();
     }
 
-    static public readonly List<LevelSelector> levels;
-    static public int Map { get; private set; }
+    readonly Dictionary<LevelType, LevelState> levels = [];
+    List<LevelSelector> levelsSelectors = [];
 
-    static void OnMenueChange(MenueType menue)
+    public int Map = 1;
+    public bool HasUnlocked(LevelType level) => this[level] == LevelState.Unlocked || this[level] == LevelState.Compleated;
+    public void CompleateLevel(LevelType level)
     {
-        if (menue == MenueType.LevelSelect)
-        {
-            ShowAll();
-            Screen.CreatLine(levels[0].frame.Pos, levels[1].frame.Pos, new(Colors.OddArmour));
-            Screen.CreatLine(levels[1].frame.Pos, levels[2].frame.Pos, new(Colors.OddArmour));
-            
-        }
-        else
-            HideAll();
+        if (!levels.ContainsKey(level))
+            throw new KeyNotFoundException($"The level {level} does not exist in the level handler.");
+        levels[level] = LevelState.Compleated;
+        if (levels[level + 1] != LevelState.DoesntExist)
+            levels[level + 1] =  LevelState.Unlocked;
     }
-    static void ShowAll()
+
+
+
+    public LevelState this[LevelType level]
     {
-        foreach (var level in levels)
-        {
-            if (level.level.level.Item1 == Map)
-                level.Show();
-            else
-                level.Hide();
-        }
-    }
-    static void HideAll()
-    {
-        foreach (var level in levels)
-        {
-            level.Hide();
-        }
-    }
-
-    static public void Nothing() { }
-    static LevelSelector()
-    {
-        Map = 1;
-        //initialises the levels in their correct Positions
-        levels = [
-            new( (30, 15), new( (1, 1) )),
-            new( (50, 30), new( (1, 2) )),
-            new( (55, 20), new( (1, 3) )),
-        ];
-
-        Scene.OnMenueChange += OnMenueChange;
-        //Throws this if there are levels that arn't visible;
-        if (levels.Count != LevelType.CompleatedLevels.Length)
-            throw new NotImplementedException();
-    }
-
-
-    public readonly LevelType level;
-    //wether or not youve beaten/unlocked the level
-    State state;
-
-    public State Statê 
-    { 
-        get
-        {
-            return state;
-        }
+        get => levels.TryGetValue(level, out var value) ? value : LevelState.DoesntExist;
         set
         {
-            //changes the image of the levelselctor depending on wether youve beaten it or not
-            switch (value)
-            {
-                case State.Locked:
-                    frame.ChangeImage(new ImageType(Layers.Frame, "LevelLocked"), shown);
-                    break;
-                case State.Unlocked:
-                    frame.ChangeImage(new ImageType(Layers.Frame, "LevelUnlocked"), shown);
-                    break;
-                case State.Compleated:
-                    frame.ChangeImage(new ImageType(Layers.Frame, "LevelCompleated"), shown);
-                    break;          
-            }
-            state = value;
-        } 
+            if (!levels.ContainsKey(level))
+                throw new KeyNotFoundException($"The level {level} does not exist in the level handler.");
+            levels[level] = value;
+        }
     }
-        
-    public override void TakeAction()
-    {    }
-    public override bool BeActedOn<T>(T d)
+    public LevelHanderler()
     {
-        if (Statê != State.Locked)
-            if (d is Pressed)
-            {
-                Fight.StartFight(level);
-                return true;
-            }
-        return false;
-    }
-    public LevelSelector(Position pos, LevelType level) : base(pos)
-    {
-        Displacement = (0, 2);
-        this.level = level;
-        //unlockes it if its the first level;
-        if (level.level.Equals((1, 1)))
-            Statê = State.Unlocked;
-        else 
-            Statê = State.Locked;
+        foreach ((var level, var _)in LevelToFight)
+            levels.Add(level, LevelState.Locked);
+        levels[new((1, 1))] = LevelState.Unlocked;
     }
 }

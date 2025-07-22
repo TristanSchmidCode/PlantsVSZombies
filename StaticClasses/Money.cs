@@ -7,70 +7,48 @@ using System.Threading.Tasks;
 
 namespace PlantsVSZombies;
 
-public static class Money
+public class Money : SingleTone<Money>
 {
-    
-    static readonly ImageHaver image;
-    static bool Shown = false;
-    public static int SunAmount { get; private set; }
-    static void OnMenueChange(MenueType menue)
+    static Image GetImage(int SunAmount)
     {
-        if (menue == MenueType.Fight)
-        {
-            Shown = true;
-            Print();
-            image.PrintImage();
-        }
-        else
-        {
-            Shown = false;
-            image.RemoveImage();
-        }
-
-    }
-    public static void MoneyStart() {SunAmount = 0; Print(); }
-    public static void SetMoney(int money)
-    {
-        SunAmount = money;
-        Print();
-    }
-    static void Print()
-    {
-        string text = "|Sun: " + SunAmount +"|";
-        List<(Position, PixelType)> building = [];
+        string text = "|Sun: " + SunAmount + "|";
 
         char[] letters = text.ToCharArray();
 
-        for (int i = 0; i < letters.Length-1; i++)
+        (Position, PixelType)[] building = new (Position, PixelType)[letters.Length];
+        for (int i = 0; i < letters.Length; i++)
         {
-            building.Add(((i, 0), 
-                new PixelType( Colors.Yellow, Colors.Black, letters[i])));
+            building[i] = ((i, 0), new PixelType(Colors.Yellow, Colors.Black, letters[i]));
         }
-        image.ChangeImage(new ImageType(building),Shown);
+        return new Image(building);
     }
-    public static void AddMoney(int money)
+    readonly ImageHaver image;
+    public int sunAmount { get; private set; }
+    void ResetImage()
     {
-        SunAmount += money;
-        Print();
-    }   
-    /// <param name="money"></param>
-    /// <returns>true if sucsesfully removed money, false if there wasn't enough money</returns>
-    public static bool MinuseMoney(int money) 
-    {
-        if (money <= SunAmount)
-        {
-            SunAmount -= money;
-            Print();
-            return true;
-        }
-        else 
-            return false;        
+        image.ChangeImage(GetImage(sunAmount),true);
     }
-    static Money()
-    {
-        image = new(Layers.Menue, (80, 3));
-        Scene.OnMenueChange += OnMenueChange;
+    public void SetMoney(int money) { sunAmount = money;  ResetImage(); }
+    public void AddMoney(int money) { sunAmount += money; ResetImage(); }
+    public void RemoveMoney(int money) { sunAmount -= money; ResetImage(); }
+    public bool HasEnoughtMoney(int amount) => amount <= sunAmount;
+    public bool TryRemoveMoney(int amount) {
+        if (!HasEnoughtMoney(amount))
+            return false;
+        RemoveMoney(amount);
+        return true;
     }
+
+    public Money(int sunAmount)
+    {
+        this.sunAmount = sunAmount;
+        image = new(GetImage(sunAmount), Layers.Menue, (80, 3));
+    }
+    protected override void DestroyThis()
+    {
+        image.RemoveImage();
+    }
+    
 }
 
 

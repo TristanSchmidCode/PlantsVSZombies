@@ -6,84 +6,13 @@ using System.Threading.Tasks;
 
 namespace PlantsVSZombies;
 
-public class Planter : Intoractible
+public class Planter : Intoractible, IEntity
 {
-    //the planter that is currently active
-    public static Planter SelPlanter { get; private set; }
-    //stores all planters here
-    public static readonly Planter[] planters;
-    
     //shows all planters during fights 
-    static void OnMenueChange(MenueType menue)
-    {
-        if (menue == MenueType.Fight)
-        {
-            ShowAll();
-        }
-        else
-            HideAll();
-    }
-    public static void ShowAll()
-    {
-        foreach (Planter planter in planters)
-        {
-            planter.Show();
-        }
-    }
-    public static void HideAll()
-    {
-        foreach (var planter in planters)
-        {
-            planter.Hide();
-        }
-    }
-    static void SetPlant(Planter planter)
-    {
-        SelPlanter.ChangeFrame();
-        SelPlanter = planter;
-        SelPlanter.ChangeFrame("SelFrame");
-    }
-    static float GetTimeOut(string plantName)
-    {
-        if (plantName == "PeaShooter")
-            return PeaShooter.TimeOut;
-        if (plantName == "SunFlower")
-            return SunFlower.TimeOut;
-        if (plantName == "WallNut")
-            return WallNut.TimeOut;
-        throw new ArgumentOutOfRangeException(nameof(plantName), "Wasn't a valid plant name");
-    }
-    static int GetPrice(string plantName)
-    {
-        if (plantName == "PeaShooter")
-            return PeaShooter.Price;
-        if (plantName == "SunFlower")
-            return SunFlower.Price;
-        if (plantName == "WallNut")
-            return WallNut.Price;
-        throw new ArgumentOutOfRangeException(nameof(plantName), "Wasn't a valid plant name");
-    }
-    static Planter()
-    {
-        int[] poses = [5, 13, 21, 29, 37];
-        planters = [
-            new Planter((BordInfo.LeftBorder / 2, poses[0])),
-            new Planter((BordInfo.LeftBorder / 2, poses[1])),
-            new Planter((BordInfo.LeftBorder / 2, poses[2])),
-            new Planter((BordInfo.LeftBorder / 2, poses[3])),
-            new Planter((BordInfo.LeftBorder / 2, poses[4])),
-        ];
-        planters[0].ChangePlant(PeaShooter.Name);
-        planters[1].ChangePlant(SunFlower.Name);
-        SelPlanter = planters[0];
-
-        Scene.OnMenueChange += OnMenueChange;
-    }
-
     public string? PlantName { get; private set; }
-    public int Price { get; private set; }
+    public int Price => PlantName != null ? PlantHanderler.GetPlantData(PlantName).Price : throw new ArgumentNullException("PlantName was null");
     //wether or not the image has shadded out as it should be
-    public bool Changed = true;
+    public bool changed = true;
     readonly Timer _timer;
     
     /// <summary>
@@ -91,17 +20,24 @@ public class Planter : Intoractible
     /// and if there's enough money
     /// </summary>
     /// <returns></returns>
-    public string? GetPlant()
+    public bool CanPlant()
     {
         if (PlantName == null)
-            return null;
+            return false;
         if (!_timer.Check(false))
-            return null;
-        if (!Money.MinuseMoney(GetPrice(PlantName)))
-            return null;
-        _timer.NewInterval(GetTimeOut(PlantName));
-        _timer.Reset();
-        return PlantName;
+            return false;
+        if (!Money.Instance!.HasEnoughtMoney(Price))
+            return false;
+        return true;
+    }
+    public void HasPlanted()
+    {
+        if (PlantName == null)
+            throw new ArgumentNullException(nameof(PlantName), "PlantName was null, this should not happen");
+        changed = true;
+        
+        _timer.NewInterval(PlantHanderler.GetPlantData(PlantName!).TimeOut);
+        _timer.ReStart();
     }
     /// <summary>
     /// 
@@ -111,70 +47,61 @@ public class Planter : Intoractible
     public bool ChangePlant(string? newPlant)
     {
         if (PlantName == newPlant)
-            return false;
-        if (newPlant == null)
-        {
-            Symol.ChangeImage(new ImageType(), shown);
-            Price = 0;
-            return true;
-        }
+            return false;        
         PlantName = newPlant;
-        Symol.ChangeImage(new ImageType(Layers.Plant, newPlant), shown);
-
-        Price = GetPrice(newPlant);
+        if (newPlant == null)
+            Symol.ChangeImage(new Image(), shown);
+        else
+            Symol.ChangeImage(Image.GetImage(Layers.Plant, newPlant), shown);
         return true;
     }
-    void ChangeFrame(string? newFrame = "Frame1")
+    public void Select(bool select)
     {
-        if (newFrame == null)
-            frame.ChangeImage(new ImageType());
+        if (select)
+            Frame.ChangeImage(Image.GetImage(Layers.Frame, "SelFrame"));     
         else
-        {
-            frame.ChangeImage(new ImageType(Layers.Frame, newFrame));
-        }
+            Frame.ChangeImage(Image.GetImage(Layers.Frame, "Frame1"));
     }
+
     public override bool BeActedOn<T>(T d)
     {
-        if (shown == false || Symol == null)
+        if (shown == false || PlantName == null)
             return false;
 
-        if (d is Pressed a)
-        {
-            if (a.situation == MenueType.Fight)
-            {
-                SetPlant(this);
-                return true;
-            }
-            else
-                throw new NotImplementedException();
-
+        if (d is Pressed) {
+            PlantHanderler.Instance!.SelectedPlanter = this;
+            return true;
         }
-
         // if neither of this things ocure, throws exeption
         throw new NotImplementedException();
     }
-    public override void TakeAction()
+    public void TakeAction()
     {
-        if (!_timer.Check(false) && Changed == true)
+        if (!_timer.Check(false) && changed == true)
         {
             Symol.ChangeImage(new GradientType(-60, -60, -60), shown);
-            Changed = false;
+            changed = false;
         }
-        else if (_timer.Check(false) && Changed == false)
+        else if (_timer.Check(false) && changed == false)
         {
             Symol.ChangeImage(null, shown);
-            Changed = true;
+            changed = true;
         }
         return;
     }
 
-    Planter(Position pos) : base(pos)
+    public Planter(Position pos) : base(pos)
     {
-        AllEntitys.AddEntities(this);
         Displacement = (0, 2);
         _timer = Timer.StartNew(0);
-        frame = new(Layers.Frame, pos);
-        frame.ChangeImage(new ImageType(Layers.Frame, "Frame1"), shown);
+        Frame = new(Layers.Frame, pos);
+        Frame.ChangeImage(Image.GetImage(Layers.Frame, "Frame1"), shown);
+        EntityHanderler.Instance.AddEntity(this);
+    }
+    public override void Destroy()
+    {
+        EntityHanderler.Instance!.RemoveEntity(this);
+        base.Destroy();
     }
 }
 

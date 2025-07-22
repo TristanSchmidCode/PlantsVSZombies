@@ -12,12 +12,12 @@ public readonly struct PixelType
 
     public readonly ColorType GetBackground()
     {
-
-
         return GetBackAndFront().Item1;
     }
     public readonly (ColorType, ColorType) GetBackAndFront()
     {
+        if (pixel == null)
+            return (default,default);
         string pix = this.pixel;
         pix = pix.Replace("\u001B[48;2;", null);
         pix = pix.Replace("\u001B[38;2;", null);

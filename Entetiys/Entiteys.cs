@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 
 namespace PlantsVSZombies;
 
+
 public interface IEntity
 {
+    LayerID Layer { get; }
     /// <summary>
     ///  Functions as the method all entity's take their own actions.
     /// </summary>

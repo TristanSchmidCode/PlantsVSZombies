@@ -20,9 +20,8 @@ namespace PlantsVSZombies
         public Layers[] IntoractsWith { get; init; } = [intoractsWith];
     }
 
-    public readonly struct Pressed(MenueType situation) : IAction
+    public readonly struct Pressed() : IAction
     {
-        public readonly MenueType situation = situation;
         public Layers[] IntoractsWith { get; init; } = [];
     }
     public readonly struct Move(ConsoleKey direction) : IAction
@@ -30,6 +29,11 @@ namespace PlantsVSZombies
         public readonly ConsoleKey direction = direction;
         public Layers[] IntoractsWith { get; init; } = [];
 
+    }
+    public readonly struct KeyPress(ConsoleKey key) : IAction
+    {
+        public readonly ConsoleKey key = key;
+        public Layers[] IntoractsWith { get; init; } = [];
     }
     public readonly struct Attack : IAction
     {
@@ -63,13 +67,13 @@ namespace PlantsVSZombies
                 Direction = -1;
 
             movementSpeed = 12;
-            List<(Position, PixelType)> building =
+            (Position, PixelType)[] building =
             [
                 ((1,0), new(Colors.White)),
                 ((0,0), new(Colors.White,Colors.Black,'\u25A0'))
             ];
-            ChangeImage(new ImageType(building));
-            AllEntitys.AddEntities(this);
+            ChangeImage(new Image(building));
+            EntityHanderler.Instance.AddEntity(this);
         }
 
         public Attack attack;
@@ -104,10 +108,9 @@ namespace PlantsVSZombies
         {
             try
             {
-                if (TheHit is LayerID id)
+                if (TheHit is LayerID id && EntityHanderler.Instance.GetEntity(id) is IEntity entity)
                 {
-                    //gives the target an attack
-                    AllEntitys.Getall()[id].BeActedOn(attack);
+                    entity.BeActedOn(attack);
                     //destroyes the bullet
                     Destroy();
                     return true;
@@ -119,7 +122,7 @@ namespace PlantsVSZombies
 
         public void Destroy()
         {
-            AllEntitys.RemoveEntities(this);
+            EntityHanderler.Instance.RemoveEntity(this);
             RemoveImage();
         }
     }

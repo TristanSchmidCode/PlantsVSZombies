@@ -8,9 +8,10 @@ namespace PlantsVSZombies;
 
 public class ImageHaver(Layers layer, Position pos)
 {
-    public LayerID Layer { get; private set; } = new LayerID(layer);
+    public LayerID Layer { get; } = new LayerID(layer);
     public Position Pos { get; private set; } = pos;
-    ImageType _image = new();
+    Image _image = new();
+    public Image Image => _image;
     public (float X, float Y) SpecificPos { get; private set; } = pos;
 
     /// <param name="MoveTo"></param>
@@ -30,13 +31,15 @@ public class ImageHaver(Layers layer, Position pos)
         return false;
     }
     /// <summary>
-    ///  Changes what is shown on the screen, and also morphes the <see cref="ImageHaver"/> given.
+    ///  Changes what is shown on the screen, and also morphes the <see cref="ImageHaver"/> given. any gradient the <see cref="ImageHaver"/> had is mantained.
     /// </summary>
-    public void ChangeImage(ImageType newImage, bool show = true)
+    public void ChangeImage(Image newImage, bool show = true)
     {
         if (show)
             RemoveImage();
-        _image = newImage;
+        var d = _image.Gradient;
+        _image = newImage.AddGradiant(d);
+        
         if (show)
         {
             PrintImage();
@@ -47,7 +50,7 @@ public class ImageHaver(Layers layer, Position pos)
     /// </summary>
     public void ChangeImage(GradientType? gradient, bool show = true)
     {
-        _image = _image.ChangeGradient(gradient);
+        _image = _image.AddGradiant(gradient);
         if (show)
             PrintImage(true);
     }
@@ -60,7 +63,7 @@ public class ImageHaver(Layers layer, Position pos)
         if (remove)
             RemoveImage();
 
-        foreach ((Position pos, PixelType pixel) in _image.Image)
+        foreach ((Position pos, PixelType pixel) in _image.Pixels)
         {
             if (!(Pos + pos).IsOutOfBounds())
                 (Pos + pos).GetPixel().AddPixel(Layer, pixel);
@@ -75,10 +78,11 @@ public class ImageHaver(Layers layer, Position pos)
     /// </summary>
     public void RemoveImage()
     {
-        foreach ((Position pos, _) in _image.Image)
+        foreach ((Position pos, _) in _image.Pixels)
         {
             if (!(Pos + pos).IsOutOfBounds())
                 (Pos + pos).GetPixel().RemovePixel(Layer);
+            
         }
     }
     /// <summary>
@@ -144,6 +148,6 @@ public class ImageHaver(Layers layer, Position pos)
     /// <param name="image"></param>
     /// <param name="layer"></param>
     /// <param name="pos"></param>
-    public ImageHaver(ImageType image,
+    public ImageHaver(Image image,
                  Layers layer, Position pos) : this(layer, pos) => ChangeImage(image);
 }

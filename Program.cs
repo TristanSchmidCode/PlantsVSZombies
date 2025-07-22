@@ -35,15 +35,7 @@ public class Program
         Console.OutputEncoding = System.Text.Encoding.Unicode;
 
         Console.CursorVisible = false;
-        Console.CursorVisible = false;
 
-       
-
-        LevelSelector.Nothing();
-        PlantSpace.Nothing();
-
-        
-        
         Time.Ticker();
         Cursor.End();
     }

@@ -17,10 +17,14 @@ public abstract class Sun : ImageHaver, IEntity
     readonly Position _endPos;
     
     //uses the function f(x)=a*(x-h)^2+k were (h,k) is the functions vertex
-    protected Sun(Position EndPos, Position StartPos, int value, bool plantMade = false) : base(Layers.Sun,StartPos)
+    protected Sun(
+        Position EndPos, 
+        Position StartPos, 
+        int value, 
+        bool plantMade = false) : base(Layers.Sun,StartPos)
     {
         float C = 5;
-        AllEntitys.AddEntities(this);
+        EntityHanderler.Instance.AddEntity(this);
 
         this._endPos = EndPos;
         this.value = value;
@@ -52,7 +56,7 @@ public abstract class Sun : ImageHaver, IEntity
     {
         if (d is PickUP)
         {
-            Money.AddMoney(value);
+            Money.Instance.AddMoney(value);
             Destroy();
         }
         return false;
@@ -60,7 +64,7 @@ public abstract class Sun : ImageHaver, IEntity
 
     public virtual void Destroy()
     {
-        AllEntitys.RemoveEntities(this);
+        EntityHanderler.Instance.RemoveEntity(this);
         RemoveImage();
     }
 
@@ -79,7 +83,6 @@ public abstract class Sun : ImageHaver, IEntity
         float x = SpecificPos.X + Time.DeltaTime * speed * _direction;
 
         float y = _a*MathF.Pow((x-_h),2)+_k;
-
 
         if (Pos.X * _direction > _endPos.X * _direction)
             MoveTo(new Position((_endPos.X, _endPos.Y)));
@@ -100,7 +103,7 @@ public class Sun25: Sun
         plantMade: true
         )
     {
-        ImageType building = new(Layers.Sun, "Sun25");
+        Image building = Image.GetImage(Layers.Sun, "Sun25");
         ChangeImage(building.RandomiseImage(10));
     }
     /// <summary>
@@ -117,7 +120,7 @@ public class Sun25: Sun
         value: 25,
         plantMade: false)
     {
-        ChangeImage(new ImageType(Layers.Sun, "Sun25", 10));
+        ChangeImage(Image.GetImage(Layers.Sun, "Sun25", 10));
     }
 }
 

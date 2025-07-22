@@ -1,300 +1,401 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using static PlantsVSZombies.Fight;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 
 
 namespace PlantsVSZombies;
 public enum MenueType
 {
-    Fight,
-    LevelSelect,
-    MainMenue,
-    Settings,
-    FightSettings,
-    SaveScreenMenue,
-    HelpMenue
+    FightMenue          = 0,
+    LevelSelectMenue    = 1,
+    MainMenue           = 2,
+    SaveScreenMenue     = 3,
+    HelpMenue           = 4,
 }
-public class Scene
+public enum Message
 {
-    public static event MenueChange? OnMenueChange;
-    public delegate void MenueChange(MenueType menue);
-    
-    
-    static MenueType _menue;
+    /// <summary>
+    /// requires a data of type LevelType
+    /// </summary>
+    OpenFightMenue          = 0,
+    OpenLevelSelectMenue    = 1,
+    OpenMainMenue           = 2,
+    OpenSaveScreenMenue     = 3,
+    OpenHelpMenue           = 4,
+    OpenSettings,
+    CloseSettings,
+    /// <summary>
+    /// requires a data of type FightEndState
+    /// </summary>
+    EndFight,
+    EscapePressed,
+}
+public enum SettingsMessage
+{
+    Open,
+    CloseReturnToMenue,
+    Close
+}
+public enum FightEndState
+{
+    FightWon,
+    FightLost,
+    FightLeft
+}
 
-    public static void Start()
+public class Scene: SingleTone<Scene>
+{
+    Menue? _currentMenue;
+    SettingsMenue? settings;
+    public readonly LevelHanderler  LevelHanderler = new();
+
+    void ChangeMenue(MenueType menue, object? data = null)
     {
-        ChangeMenue(MenueType.MainMenue);
-        Thread d = new(Cursor.Start);
-        d.Start();
+        if (menue == Menue)
+            return;
+        if (settings != null)
+            HandleMessage(Message.CloseSettings, null);
+        if (Menue == menue)
+            return;
+        Instance._currentMenue?.Close();
+        Instance._currentMenue = null;
+        switch (menue)
+        {
+            case MenueType.LevelSelectMenue:
+                Instance._currentMenue = LevelSelectMenue.OpenMenue();
+                break;
+            case MenueType.MainMenue:
+                Instance._currentMenue = MainMenue.OpenMenue();
+                break;
+            case MenueType.SaveScreenMenue:
+                Instance._currentMenue = BlankMenue.OpenMenue();
+                break;
+            case MenueType.HelpMenue:
+                Instance._currentMenue = HelpMenue.OpenMenue();
+                break;
+            case MenueType.FightMenue:
+                if (data is not LevelType level)
+                    throw new ArgumentException("Data must be of type LevelType", nameof(data));
+                Instance._currentMenue = FightMenue.OpenMenue(level);
+                break;
+        }
+    }    
+    void HandleMessage(Message message, object? data = null)
+    {
+        switch (message)
+        {
+            case Message.OpenFightMenue:   
+            case Message.OpenLevelSelectMenue:
+            case Message.OpenMainMenue:
+            case Message.OpenSaveScreenMenue:
+            case Message.OpenHelpMenue:
+                ChangeMenue((MenueType)message, data);
+                break;
+            case Message.OpenSettings:
+                if (settings != null)
+                    return;
+                _currentMenue?.SetShow(false);
+                settings = SettingsMenue.OpenMenue();
+                break;
+            case Message.CloseSettings:
+                if (settings == null)
+                    return;    
+                _currentMenue?.SetShow(true);
+      
+                settings.Close();  
+                settings = null;
+                break;
+            case Message.EndFight:
+                if (data is not FightEndState endState)
+                    throw new ArgumentException("Data must be of type FightEndState", nameof(data));
+
+                Fight fight = Fight.Instance;
+                if (endState == FightEndState.FightWon)
+                {
+                    fight.End(fightWon: true);
+                    (ColorType, ColorType, ColorType) color = (Colors.DarkGreen, Colors.Green, Colors.Black);
+                    ChangeMenue(MenueType.SaveScreenMenue);
+                    new Image("You Won", color, true).Print((15, 20));
+                    if (fight.FinalMessage != string.Empty)
+                        new Image(fight.FinalMessage, color).Print((15, 28));
+                }
+                else if (endState == FightEndState.FightLost)
+                {
+
+                    fight.End(fightWon: false);
+                    (ColorType, ColorType, ColorType) color = (new(110, 0, 0), Colors.Red, Colors.Black);
+                    ChangeMenue(MenueType.SaveScreenMenue);
+                    new Image("You Lost", color, true).Print((15, 20));
+                    if (fight.FinalMessage != string.Empty)
+                        new Image(fight.FinalMessage, color).Print((15, 28));
+                }
+                else if (endState == FightEndState.FightLeft) {
+                    fight.End(fightWon: false);
+                    ChangeMenue(MenueType.MainMenue);
+                }
+                break;
+            case Message.EscapePressed:
+                if (settings == null)
+                    HandleMessage(Message.OpenSettings);
+                else
+                    HandleMessage(Message.CloseSettings);
+                break;
+
+        }
+    }
+    void HandleMessages()
+    {
+        while (_messages.Count != 0)
+        {
+            Message message;
+            object? data;
+
+            lock (_lock)
+            {
+                (message, data) = _messages.Dequeue();
+            }
+            HandleMessage(message,data);
+        }
+    }
+
+
+
+    readonly Queue<(Message message, object? data)> _messages = [];
+    static readonly object _lock = new object();
+    public void SendMessage(Message message, object? data = null) {
+        lock(_lock)
+        {
+            _messages.Enqueue((message, data));
+        }
+    }
+    public void SendChangeMenueMessage(MenueType menue, object? data = null)
+    {
+        SendMessage((Message)menue, data);
+    }
+    public MenueType Menue => _currentMenue!.MenueType;
+    public void Start()
+    {
+        _currentMenue = MainMenue.OpenMenue();
+        Thread thread = new(Cursor.Start);
+        thread.Start();
         Thread.Sleep(1000);
     }
 
 
-    public static void ChangeMenue(MenueType menue)
-    {
-        if (_menue == menue)
-            return;
-        _menue = menue;        
-        if (menue == MenueType.LevelSelect)
+
+    public void Run()
+    {        
+        Cursor.HandleKeys();
+
+        while (_messages.Count != 0)
+            HandleMessages();
+
+        if (Menue == MenueType.FightMenue)
         {
-            ChangeBackground(Background.Map1);
-            
-            new ImageType(Layers.Forground, "Tital").Print((BordInfo.MapLeft / 2 - 4, 5));
-            ImageType back = new("Back", (new(110, 0, 0), Colors.Red, Colors.Green));
-            Cursor.Move(new MenueChanger((1, 38), (6, 0), MenueType.MainMenue, back));
-        }
-        if (menue == MenueType.MainMenue)
-        {
-            ChangeBackground(Background.MainMenue);
-
-            MainMenue.Open();
-        }
-        if (menue == MenueType.Settings)
-        {
-            ChangeBackground(Background.SettingMenue);
-
-            Cursor.Move(new SettingsMenue(null).gameSpeed);
-        }
-        if (menue == MenueType.SaveScreenMenue)
-        {
-            ChangeBackground(Background.PureBlack);
-            Cursor.Move(new MenueChanger(MenueType.LevelSelect));
-        }
-        if (menue == MenueType.FightSettings)
-        {
-            Fight.CurrentFight!.Pause(true);
-            LayerID ID = new(Layers.Inermenue);
-            Screen.AddToEach(ID, new PixelType(Colors.White));
-            Cursor.Move(new SettingsMenue(ID).gameSpeed);
-        }
-        if (menue == MenueType.HelpMenue)
-        {
-            ChangeBackground(Background.PureBlack);
-            var d = (Colors.DarkGreen, Colors.Green, Colors.Black);
-            new ImageType("You are playing plants vs zombies,PvZ", d, false).Print((2, 5));
-            new ImageType("This game is about defending agains Zombies", d, false).Print((2, 9));
-            new ImageType("To do so, you plant plants down, ", d, false).Print((2, 13));
-            new ImageType ("each of which cost sun", d, false).Print((2, 17));
-            new ImageType("Move your mouse with the arrow keys,", d, false).Print((2, 21));
-            new ImageType("and select things with the enter key", d, false).Print((2, 25));
-            new ImageType("Have fun", d, false).Print((2, 27));
-
-            ImageType back = new("Leave", (new(110, 0, 0), Colors.Red, Colors.Black));
-            Cursor.Move(new MenueChanger((70, 38), (6, 0), MenueType.MainMenue, back));
-        }
-        OnMenueChange?.Invoke(menue);
-    }
-
-    static public void Run()
-    {
-        if (_menue == MenueType.Settings || _menue == MenueType.FightSettings)
-            Settings_CursorControle();
-        else
-            Base_CursorControle();
-
-        if (_menue == MenueType.Fight)
-            InFight();
-
-        return;
-        void Base_CursorControle()
-        {
-            var Keys = Cursor.ReadKeys();
-
-            foreach (var key in Keys)
-            {
-                Cursor.Move(key);
-
-                if (key == ConsoleKey.Enter)
-                {
-                    Cursor.Current.BeActedOn(new Pressed(_menue));
-                }
-                if (key == ConsoleKey.Escape)
-                {
-                    if (_menue == MenueType.Fight)
-                        ChangeMenue(MenueType.FightSettings);
-                    else if (_menue == MenueType.FightSettings)
-                        ChangeMenue(MenueType.Fight);
-                }
-            }
-            Cursor.CheckIntoractions();
-        }
-        void Settings_CursorControle()
-        {
-            var Keys = Cursor.ReadKeys();
-            foreach (var key in Keys)
-            {
-                //when you activate an intoractible inside the setting menue,
-                //makes sure pressing keys doesn't move your cursor
-                if (SettingsMenue.Insetting)
-                {
-                    if (Cursor.moveKeys.Contains(key))
-                        Cursor.Current.BeActedOn(new Move(key));
-                    if (key == ConsoleKey.Escape)
-                        SettingsMenue.Insetting = false;
-                }
-                else
-                {
-                    Cursor.Move(key);
-                    if (key == ConsoleKey.Enter)
-                    {
-                        SettingsMenue.Insetting = true;
-                        Cursor.Current.BeActedOn(new Pressed());
-                    }
-                }
-            }
-
-            return;
+            EntityHanderler.Instance.RegisterAndUnrgisterAll();
+            Cursor.CheckSunCollisions();
+            Fight.Instance.ActivateAll();
         }
     }
-    static void InFight()
+    protected override void DestroyThis()
     {
-        FightingState state = Fight.CurrentFight!.ActivateAll();
-
-        if (state == FightingState.FightLost)
-        {
-            (ColorType, ColorType, ColorType) color = (new(110, 0, 0), Colors.Red, Colors.Black);
-            ChangeMenue(MenueType.SaveScreenMenue);
-            new ImageType("You Lost", color, true).Print((15,20));
-            if (Fight.CurrentFight.FinalMessage != string.Empty)
-                new ImageType(Fight.CurrentFight.FinalMessage, color).Print((15, 28));
-            
-        }
-        else if (state == FightingState.FightWon)
-        {
-            (ColorType, ColorType, ColorType) color = (Colors.DarkGreen, Colors.Green, Colors.Black);
-            ChangeMenue(MenueType.SaveScreenMenue);
-            new ImageType("You Won", color, true).Print((15,20));
-          
-            if (Fight.CurrentFight.FinalMessage != string.Empty)
-                new ImageType(Fight.CurrentFight.FinalMessage,color).Print((15, 28));
-            
-        }
-    }  
+        _currentMenue?.Close();
+        _currentMenue = null;
+    }
 }
-
-public class MainMenue
+public abstract class Menue
 {
-    ImageHaver tital;
-    ImageHaver graveStone;
-    ImageHaver[] zombies;
-    Intoractible start;
-    Intoractible help;
-    Intoractible settings;
+    public abstract MenueType MenueType { get; }
+    protected List<ImageHaver> _images = [];
 
-    public static void Open()
+    protected List<Intoractible> _intoractibles = [];
+    public virtual void Close()
     {
-        _ = new MainMenue();
+        foreach (var image in _images)
+            image.RemoveImage();
+        foreach (var intoractible in _intoractibles)
+            intoractible.Destroy();
     }
-    MainMenue()
+    public virtual void SetShow(bool show)
     {
-        tital = new(Layers.Forground, (BordInfo.MapLeft/2 -4, 5));
-        tital.ChangeImage(new ImageType(Layers.Forground, "Tital"));
-        graveStone = new(Layers.Forground, (BordInfo.MapLeft / 2+20, 25));
-        graveStone.ChangeImage(new ImageType(Layers.Frame, "GraveStone").TrueRandomiseImage());
-        zombies = [
-            new(Layers.Forground, (32, 20)),
-            new(Layers.Forground, (11, 25)),
-            new(Layers.Forground, (120, 32)),
-            new(Layers.Forground, (23, 22)),
-            new(Layers.Forground, (83, 12)),
-            new(Layers.Forground, (22, 37)),
-            new(Layers.Forground, (105, 35)),
-            new(Layers.Forground, (95, 12)),
-            new(Layers.Forground, (135, 25)),
-            new(Layers.Forground, (65, 19)),
-
-        ];
-
-        //makes a random zombe image
-        foreach (var zombie in zombies)
+        if (show) {
+            foreach (var image in _images)
+                image.PrintImage();
+            foreach (var intoractible in _intoractibles)
+                intoractible.Show();
+        }
+        else  {
+            foreach (var image in _images)
+                image.RemoveImage();
+            foreach (var intoractible in _intoractibles)
+                intoractible.Hide();
+        }
+    }
+}
+public class MainMenue : Menue
+{
+    public override MenueType MenueType => MenueType.MainMenue;
+    static Position GraveStonePos => (BordInfo.MapLeft / 2 + 20, 25);
+    public static MainMenue OpenMenue()
+    {
+        return new MainMenue();
+    }
+    void MakeImages()
+    {
+        ImageHaver MakeZombie(Position pos)
         {
             Random rnd = new();
             int k = new Random().Next(0, 10);
+            Image image;
             if (k < 6)
-                zombie.ChangeImage(new ImageType(Layers.BZombie, "BaseZombie"));
+                image = Image.GetImage(Layers.BZombie, "BaseZombie");
             else if (k < 8)
-                zombie.ChangeImage(new ImageType(Layers.BZombie, "FatZombie"));
+                image = Image.GetImage(Layers.BZombie, "FatZombie");
             else
-                zombie.ChangeImage(new ImageType(Layers.BZombie, "TractorZombie"));
+                image = Image.GetImage(Layers.BZombie, "TractorZombie");
+            return new ImageHaver(image, Layers.Forground, pos);
         }
-        //makes the river 
+        _images = [
+            new ImageHaver(Image.GetImage(Layers.Forground, "Tital"),
+               Layers.Forground, (BordInfo.MapLeft / 2 - 4, 5)),
+            new ImageHaver(Image.GetImage(Layers.Frame, "GraveStone").TrueRandomiseImage(),
+                Layers.Forground, GraveStonePos),
+            MakeZombie((32, 20)),
+            MakeZombie((11, 25)),
+            MakeZombie((120, 32)),
+            MakeZombie((23, 22)),
+            MakeZombie((83, 12)),
+            MakeZombie((22, 37)),
+            MakeZombie((105, 35)),
+            MakeZombie((95, 12)),
+            MakeZombie((135, 25)),
+            MakeZombie((65, 19)),
+        ];
+
+    }
+    void MakeRiver()
+    {
         CreatLine((0, 40), (BordInfo.MapLeft, 21), new(Colors.PukeBroun), 15);
         for (int i = 40; i > 33; i--)
-            CreatLine((0, i), (BordInfo.MapLeft, i/2), new(Colors.Blue),  15);
+            CreatLine((0, i), (BordInfo.MapLeft, i / 2), new(Colors.Blue), 15);
         CreatLine((0, 33), (BordInfo.MapLeft, 16), new(Colors.PukeBroun), 15);
-
-        ImageType StartImage = new("Start", (Colors.DarkGreen, Colors.Green, Colors.Gray));
-        ImageType HelpImage = new("Help", (Colors.DarkGreen, Colors.Green, Colors.Green));
-        start = new MenueChanger(graveStone.Pos + (-9, -2), (9,1), MenueType.LevelSelect, StartImage);
-        help = new MenueChanger(graveStone.Pos + (-7, 2), (8, 1), MenueType.HelpMenue, HelpImage);
-        settings = new MenueChanger(graveStone.Pos + (-3, 4), (3,2),MenueType.Settings, new ImageType("Settings",Colors.Gray,Colors.Red));
-
-        Cursor.Move(start);
-        Scene.OnMenueChange += OnMenueChange;
-        
+    }
+    void MakeIntoractibles()
+    {
+        _intoractibles = [
+            new MenueChanger(GraveStonePos + (-9, -2), (9,1), MenueType.LevelSelectMenue, 
+                new Image("Start", (Colors.DarkGreen, Colors.Green, Colors.Gray))),
+            new MenueChanger(GraveStonePos + (-7, 2), (8, 1), MenueType.HelpMenue, 
+                new Image("Help", (Colors.DarkGreen, Colors.Green, Colors.Green))),
+            new MessageSender(GraveStonePos + (-3, 4), (3,2),(Message.OpenSettings,null), 
+                new Image("Settings",Colors.Gray,Colors.Red))
+        ];
+    }
+    MainMenue()
+    {        
+        ChangeBackground(Background.MainMenue);
+        MakeImages();
+        MakeRiver();
+        MakeIntoractibles();
+        Cursor.MoveCursor(_intoractibles![0]);
+    }
+}
+public class LevelSelectMenue :Menue
+{
+    public override MenueType MenueType => MenueType.LevelSelectMenue;
+    public static LevelSelectMenue OpenMenue()
+    {
+       return new LevelSelectMenue();
     }
 
-
-    public void OnMenueChange(MenueType menue)
+    void AddSelectors()
     {
-        if (menue != MenueType.MainMenue)
-        {
-            tital.RemoveImage();
-            graveStone.RemoveImage();
-            start.Destroy();
-            settings.Destroy();
-            foreach (var zombie in zombies)
-                zombie.RemoveImage();
+        var levelHanderler = Scene.Instance.LevelHanderler;
+        LevelType level = new(levelHanderler.Map, 1);
+        if (!level.IsValid())
+            return;
 
-            Scene.OnMenueChange -= OnMenueChange;
+        bool stop = false;
+        LevelSelector? previos = null;
+        MakeSelector(new(30, 15));
+        MakeSelector(new(50, 30));
+        MakeSelector(new(55, 20));
+        void MakeSelector(Position pos)
+        {
+            if (stop)
+                return;
+            LevelSelector current = new(pos, level, levelHanderler[level]);
+            if (previos is LevelSelector prev)
+            {
+                Screen.CreatLine(previos.Frame.Pos, current.Frame.Pos, new(Colors.OddArmour));
+            }
+
+            previos = current;
+            level = level + 1;
+            if (!level.IsValid())
+                stop = true;
+            if (level.Map != levelHanderler.Map)
+                stop = true;
+            _intoractibles.Add(current);
         }
+    }
+    LevelSelectMenue()
+    { 
+        ChangeBackground(Background.Map1);
+
+        _images.Add(new ImageHaver(
+            Image.GetImage(Layers.Forground, "Tital"), Layers.Forground, (BordInfo.MapLeft / 2 - 4, 5)));
+
+        _intoractibles.Add(new MenueChanger((1, 38), (6, 0), MenueType.MainMenue, 
+            new Image("Back", ( new(110, 0, 0), Colors.Red, Colors.Green ) ) ) );
+
+        AddSelectors();
+        Cursor.MoveCursor(_intoractibles[0]);
     }
 
 }
-
-public class SettingsMenue
+public class SettingsMenue 
 {
-    public static bool Insetting { get; set; }
-    public static float GameSpeed { get; private set; }
+    protected List<ImageHaver> _images = [];
+
+    protected List<Intoractible> _intoractibles = [];
+
     static int _indexOfCursorColor;
     
     readonly GradientType[] _cursorColors = [new(-30,-30,-30),new(-60,-60,-60),new(100,-20,-20), new(-20,100,-20), new(-20, -20, 100)];
-    
-    public readonly Intoractible gameSpeed;
-    readonly ImageHaver _tital;
-    readonly Intoractible _cursorColor;
-    readonly Intoractible _leave;
-    readonly Intoractible? _leaveFight;
+
+    Intoractible gameSpeed = null!;
     
     void ChangeGameSpeed(bool up)
     {
-        if (GameSpeed < 2f)
+        if (Time.GameSpeed < 2f)
         {
             if (up)
-                GameSpeed += 0.2f;
-            else if (GameSpeed > 0.4f)
-                GameSpeed -= 0.2f;
+                Time.GameSpeed += 0.2f;
+            else if (Time.GameSpeed > 0.4f)
+                Time.GameSpeed -= 0.2f;
         }
-        else if (GameSpeed >= 2f)
+        else if (Time.GameSpeed >= 2f)
         {
             if (up)
-                GameSpeed += 1;
-            else if (GameSpeed > 2f)
-                GameSpeed -= 1f;
+                Time.GameSpeed += 1;
+            else if (Time.GameSpeed > 2f)
+                Time.GameSpeed -= 1f;
             else
-                GameSpeed -= 0.2f;
+                Time.GameSpeed -= 0.2f;
         }
-        GameSpeed = MathF.Round(GameSpeed, 2);
-
-        gameSpeed.Symol.ChangeImage(new ImageType($"{{{GameSpeed}}}", BordInfo.GreenText), true);
+        Time.GameSpeed = MathF.Round(Time.GameSpeed, 2);
+        gameSpeed.Symol.ChangeImage(new Image($"{{{Time.GameSpeed}}}", BordInfo.GreenText), true);
     }
     void ChangeCursorColor(bool up)
     {
@@ -312,79 +413,158 @@ public class SettingsMenue
             else
                 _indexOfCursorColor--;
         }
-        Cursor.gradient.ChangeGradient(_cursorColors[_indexOfCursorColor]);
-    }
-    static SettingsMenue()
-    {
-        GameSpeed = 1f;        
+        Cursor.Gradient = _cursorColors[_indexOfCursorColor];
     }
 
-
-    public SettingsMenue(LayerID? FightSettings)
+    public static SettingsMenue OpenMenue()
     {
-        _isFightingMeneu = FightSettings;
-        Layers layer;
-        if (FightSettings.HasValue)
-        {
-            layer = Layers.InnerIntoractible;
+        return new SettingsMenue();
+    }
+    void IsFightingMenue()
+    {
+        Fight.Instance.Pause(true);
+        _intoractibles.Add(new MessageSender((1, 40), (15, 0), (Message.CloseSettings,null),
+            new Image("Go Back", BordInfo.RedText), Layers.InnerIntoractible));
+        _intoractibles.Add(new MessageSender((117, 40), (15, 0), (Message.EndFight,FightEndState.FightLeft),
+            new Image("Main Menue", BordInfo.RedText),      Layers.InnerIntoractible));
+    }
+    void MakeGameSpeedIntoractible()
+    {
+        gameSpeed = new SettingIntor(
+            pos: (1, 15),
+            fromCenter: (50, 0), //makes sure the cursor is in the blank space
+            @delegate: ChangeGameSpeed,
+            layer: Layers.InnerIntoractible,
+            symol: new Image($"{{{Time.GameSpeed}}}", BordInfo.GreenText),
+            frame: new Image("Game Speed ", BordInfo.GreenText)
+        );
+        _intoractibles.Add(gameSpeed);
+        gameSpeed.Symol.MoveBy((45, 0));// makes sure the symbol is where it should be
+    }
+    void MakeChangeCursorColorIntoractible()
+    {
+        (Position, PixelType)[] Space = new (Position, PixelType)[15 * 7];
+        for (int x = 0; x < 15; x++)
+            for (int y = 0; y < 7; y++)
+                Space[y * 15 + x] = (new(x - 56, y - 4), new(Colors.White, Colors.Black, ' '));
+        _intoractibles.Add(new SettingIntor(
+            pos: (1, 22),
+            fromCenter: (63, 1), //makes sure the cursor is in the blank space
+            @delegate: ChangeCursorColor,
+            layer: Layers.InnerIntoractible,
+            symol: new Image(Space),
+            frame: new Image("Cursor Color {    }", BordInfo.GreenText)
+        ));
+    }
+    public SettingsMenue()
+    {
+        ChangeBackground(Background.SettingMenue);
 
-            _tital = new(new ImageType(Layers.Forground, "Tital"), Layers.InnerIntoractible, (BordInfo.MapLeft / 2 - 4, 5));
-
-            _leave = new MenueChanger((1, 40), (15, 0), MenueType.Fight,
-                    new ImageType("Go Back", BordInfo.RedText), layer);
-            _leaveFight = new MenueChanger((117, 40), (15, 0), MenueType.MainMenue,
-                new ImageType("Main Menue", BordInfo.RedText), layer);
-
-        }
+        if (Fight.TryGetInstance(out _)) 
+            IsFightingMenue();
         else
-        {
-            layer = Layers.Frame;
-            _tital = new(new ImageType(Layers.Forground, "Tital"), Layers.Forground, (BordInfo.MapLeft / 2 - 4, 5));
-            _leave = new MenueChanger((1, 40), (15, 0), MenueType.MainMenue,
-                new ImageType("Leave", BordInfo.RedText));
-        }
+            _intoractibles.Add(new MessageSender((1, 40), (15, 0), (Message.CloseSettings,null),
+                new Image("Leave", BordInfo.RedText), Layers.InnerIntoractible));
 
-
-        gameSpeed = new SettingIntor((1, 15), (50, 0), ChangeGameSpeed, layer);
-        //creates the image for the game speed intoractible
-        gameSpeed.frame.ChangeImage(new ImageType("Game Speed ", BordInfo.GreenText), true);
-        gameSpeed.Symol.ChangeImage(new ImageType($"{{{GameSpeed}}}", BordInfo.GreenText), true);
-        gameSpeed.Symol.MoveBy((45, 0));
-
-        //creates the image for the CursorColor intoractible
-        _cursorColor = new SettingIntor((1, 22), (63, 1), ChangeCursorColor,layer);
-        _cursorColor.frame.ChangeImage(new ImageType("Cursor Color {    }", BordInfo.GreenText), true);
-
-       
-
-        Cursor.Move(_leave);
-
-        Scene.OnMenueChange += OnChangeMenue;
+        _images.Add(new ImageHaver(Image.GetImage(Layers.Forground, "Tital"), Layers.InnerIntoractible,
+            (BordInfo.MapLeft / 2 - 4, 5)));
+        MakeGameSpeedIntoractible();
+        MakeChangeCursorColorIntoractible();
     }
 
-    readonly LayerID? _isFightingMeneu;
-    public void OnChangeMenue(MenueType menue)
+    public void Close()
     {
-        if (menue != MenueType.Settings & menue != MenueType.FightSettings)
-        {
-            Scene.OnMenueChange -= OnChangeMenue;
+        foreach (var image in _images)
+            image.RemoveImage();
+        foreach (var intoractible in _intoractibles)
+            intoractible.Destroy();
+        Screen.CloseOverTheTopBackGround();
+        if (Fight.TryGetInstance(out Fight fight))
+            fight.Pause(false);
+    }
+}
+public class BlankMenue : Menue
+{
+    public override MenueType MenueType => MenueType.SaveScreenMenue;
+    public static BlankMenue OpenMenue() => new BlankMenue();
+    BlankMenue()
+    {
+        ChangeBackground(Background.PureBlack);
+        _images.Add(new ImageHaver(Image.GetImage(Layers.Forground, "Tital"), Layers.Forground, (BordInfo.MapLeft / 2 - 4, 5)));
+        _intoractibles.Add(new MenueChanger(MenueType.LevelSelectMenue));
+        Cursor.MoveCursor(_intoractibles[0]);
+    }
+}
+public class HelpMenue : Menue
+{
+    public override MenueType MenueType => MenueType.HelpMenue;
+    public static HelpMenue OpenMenue() => new HelpMenue();
+    HelpMenue()
+    {
+        ChangeBackground(Background.PureBlack);
+        var d = (Colors.DarkGreen, Colors.Green, Colors.Black);
+        new Image("You are playing Plants vs. Zombies,PvZ", d, false).Print((2, 5));
+        new Image("This game is about defending agains Zombies", d, false).Print((2, 9));
+        new Image("To do so, you plant plants down, ", d, false).Print((2, 13));
+        new Image("each of which cost sun", d, false).Print((2, 17));
+        new Image("Move your mouse with the arrow keys,", d, false).Print((2, 21));
+        new Image("and select things with the enter key", d, false).Print((2, 25));
+        new Image("Have fun", d, false).Print((2, 27));
 
-            gameSpeed.Destroy();
-            _cursorColor.Destroy();
-            _leave.Destroy();
-            _tital.RemoveImage();
-            if (_isFightingMeneu is LayerID ID)
-            {               
-                _leaveFight!.Destroy();
+        _intoractibles.Add(new MenueChanger((70, 38), (6, 0), MenueType.MainMenue,
+            new("Leave", (new(110, 0, 0), Colors.Red, Colors.Black))));
 
-                Screen.RemoveFromAllPixels(ID);
-                CurrentFight!.Pause(false);
-                if (menue != MenueType.Fight)
-                    CurrentFight!.EndEarly();
-                Scene.ChangeMenue(MenueType.Fight);
-            }
-
-        }
+        Cursor.MoveCursor(_intoractibles[0]);
     }
 }
 
+
+
+public class FightMenue : Menue{
+    public override MenueType MenueType => MenueType.FightMenue;
+    readonly PlantHanderler handerler;    
+    readonly Money money;
+
+    readonly EntityHanderler entityHanderler;
+    readonly Fight fight;
+    public static FightMenue OpenMenue(LevelType level)
+    {
+        return new FightMenue(level);
+    }
+   
+    FightMenue(LevelType level)
+    {
+        Screen.ChangeBackground(Background.grassFight);
+        fight = LevelHanderler.CreateFight(level);
+        entityHanderler = new();
+        handerler = new();
+        money = new(sunAmount: 100);
+        fight.Start();
+    }
+    public override void Close()
+    {
+        base.Close();
+        handerler.Destroy();
+        fight.Destroy();
+        entityHanderler.Destroy();
+        money.Destroy();
+    }
+    //so that the cursor can be moved to the last target when the settings are closed
+    Intoractible? previosTarget;
+
+    public override void SetShow(bool show)
+    {
+        base.SetShow(show);
+        if (show) {
+            handerler.SetShow(show);
+            if (previosTarget != null) 
+                Cursor.MoveCursor(previosTarget);
+            
+        
+        }
+        else {
+            handerler.SetShow(false);
+            previosTarget = Cursor.Target;
+        }
+    }
+}

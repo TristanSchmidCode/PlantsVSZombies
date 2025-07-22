@@ -17,12 +17,12 @@ public class BaseZombie(int pos) : Zombie(
     health: 10,
     damage: 1)
 {
-    public override void Summon()
+    protected override void _Summon()
     {
-        AllEntitys.AddEntities(this);
-        
+        EntityHanderler.Instance.AddEntity(this);
+
         attackTimer.Start();
-        ChangeImage(new ImageType(Layers.BZombie, "BaseZombie", 10));
+        ChangeImage(Image.GetImage(Layers.BZombie, "BaseZombie", 10));
 
         Hat?.MoveTo(Pos + Displacement);
         Hat?.Summon();

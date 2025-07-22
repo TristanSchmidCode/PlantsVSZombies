@@ -13,33 +13,17 @@ public class _1_1_ : Fight
     public _1_1_() : base(new((1, 1)), Background.grassFight)
     {
         Queue<Wave> waves = new();
-        waves.Enqueue(TestWave());
+        waves.Enqueue(FinalWave());
         Waves = waves;
     }
-    protected override void End(FightingState state)
+    public override void End(bool fightWon)
     {
-
-        if (Planter.planters[2].PlantName == null && state == FightingState.FightWon)
-        {
-            FinalMessage = "You unlocked the WallNut Plant";
-            Planter.planters[2].ChangePlant(WallNut.Name);
-        }
-
-        base.End(state);
+        if (fightWon)
+            SaveState.UnlockPlant("WallNut");
+        base.End(fightWon);
     }
     //as the name impliys, this is for testing only.
-    Wave TestWave()
-    {
-        WaveInfo Intermition = new(new List<Zombie>
-        {
-            new BaseZombie(),
-        }, 1);
-        WaveInfo k = new(new List<Zombie>
-        {
-            new BaseZombie(),
-        }, 1);
-        return new(Intermition, k, true);
-    }
+
     Wave FinalWave()
     {
         WaveInfo Intermition = new( new List<Zombie>

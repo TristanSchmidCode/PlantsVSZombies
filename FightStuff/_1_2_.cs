@@ -13,6 +13,7 @@ internal class _1_2_: Fight
     public _1_2_() : base(new((1, 2)), Background.grassFight)
     {
         Queue<Wave> waves = new();  
+        
         waves.Enqueue(Wave1());
         waves.Enqueue(FinalWave());
         Waves = waves;

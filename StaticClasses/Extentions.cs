@@ -162,9 +162,6 @@ namespace RBGColors
         }
      
         /// <returns> A new byte with a +- a random number within <see href="difrence"/> </returns>
-
-        
-        
         public static string RandomiseColor(this string Pixel, int difrence)
         {
             if (difrence == 0)

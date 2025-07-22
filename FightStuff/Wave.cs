@@ -22,37 +22,37 @@ public class Wave
     /// <summary>
     /// 
     /// </summary>
-    /// <returns> In what stage The <see cref="Wave"/> is in;</returns>
-    public FightingState TakeAction()
+    /// <returns> wether the wave is over;</returns>
+    public bool TakeAction()
     {
-       
         if (_intermition.zombies.Count != 0)
-            return InIntermition();
+        {
+            InIntermition();
+            return false;
+        }
         else
             return InWave();
     }
-    FightingState InIntermition()
+    void InIntermition()
     {
-        if (_timer.Check())
-        {
-            (Zombie zombie, float Wait) = _intermition.zombies.Pop();
-            zombie.Summon();
-            _timer.NewInterval(Wait);
-        }
-        return FightingState.InFight;
+        if (!_timer.Check())
+            return;
+        (Zombie zombie, float Wait) = _intermition.zombies.Pop();
+        zombie.Summon();
+        _timer.NewInterval(Wait);
     }
 
-    FightingState InWave()
+    bool InWave()
     {
-        if (_timer.Check())
-        {
-            if (_fullWave.zombies.Count == 0)
-                return FightingState.WaveEnded;
-            (Zombie zombie, float Wait) = _fullWave.zombies.Pop();
-            zombie.Summon();
-            _timer.NewInterval(Wait);
-        }
-        return FightingState.InFight;
+        if (!_timer.Check())
+            return false;
+
+        if (_fullWave.zombies.Count == 0)
+            return true;
+        (Zombie zombie, float Wait) = _fullWave.zombies.Pop();
+        zombie.Summon();
+        _timer.NewInterval(Wait);
+        return false;
     }
 
     public Wave(WaveInfo InbetweenWave, WaveInfo Wave, bool firstWave)
@@ -63,9 +63,6 @@ public class Wave
             _timer = new(20);
         else
             _timer = new(0);
-        
-
-
     }
     public Wave(WaveInfo Wave, bool firstWave) : this(new(), Wave, firstWave) { }
 

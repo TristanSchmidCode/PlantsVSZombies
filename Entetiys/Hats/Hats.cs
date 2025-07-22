@@ -55,7 +55,7 @@ public class Cone(Position pos) : Hats(pos, 15)
         {
             armour -= damage;
             if (armour < 7)
-                ChangeImage(new ImageType(Layers.Special, "DamagedCone"));
+                ChangeImage(Image.GetImage(Layers.Special, "DamagedCone"));
         }
         else
             armour -= damage;
@@ -72,12 +72,12 @@ public class Cone(Position pos) : Hats(pos, 15)
     }
     public override void Summon()
     {
-        ChangeImage(new ImageType(Layers.Special, "Cone"));
+        ChangeImage(Image.GetImage(Layers.Special, "Cone"));
         PrintImage(false);
     }
     public Cone() : this((0, 0)) { }
 }
-public class Bucket(Position pos): Hats(pos, 65)
+public class Bucket(Position pos): Hats(pos, 30)
 {
     public override int TakeDamage(int damage, out bool dead)
     {
@@ -88,13 +88,13 @@ public class Bucket(Position pos): Hats(pos, 65)
         {
             armour -= damage;
             if (armour < damagePhase1)
-                ChangeImage(new ImageType(Layers.Special, "DamagedBucket"));
+                ChangeImage(Image.GetImage(Layers.Special, "DamagedBucket"));
         }
         else if (armour >= damagePhase2)
         {
             armour -= damage;
             if (armour < damagePhase2)
-                ChangeImage(new ImageType(Layers.Special, "BadlyDamagedBucket"));
+                ChangeImage(Image.GetImage(Layers.Special, "BadlyDamagedBucket"));
         }
         else
             armour -= damage;
@@ -111,7 +111,7 @@ public class Bucket(Position pos): Hats(pos, 65)
     }
     public override void Summon()
     {
-        ChangeImage(new ImageType(Layers.Special, "Bucket"));
+        ChangeImage(Image.GetImage(Layers.Special, "Bucket"));
         PrintImage(false);
     }
     public Bucket() : this((0, 0)) { }

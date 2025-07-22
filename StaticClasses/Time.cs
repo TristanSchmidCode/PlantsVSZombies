@@ -7,13 +7,12 @@ public static class Time
 {
     public static event CycleDeligate? OnOneCycle;
     public delegate void CycleDeligate(float Time);
+    public static float GameSpeed = 1;
 
-    
     public static float DeltaTime 
     { 
         get { return deltaTime / 1000; } 
-        private set { deltaTime = value; 
-        } 
+        private set { deltaTime = value; } 
     }
     static float deltaTime;
     static Time()
@@ -23,21 +22,20 @@ public static class Time
 
     public static void Ticker()
     {
-        Money.MoneyStart();
-        Scene.Start();
-        
+        Scene scene = new Scene();
+        scene.Start();
         while (true)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
 
             //The base of everything
-            Scene.Run();
+            scene.Run();
 
 
-            //I the game runs to fast, it can break;
+            //I the game runs too fast, it can break;
             if (stopwatch.ElapsedMilliseconds < 2)
                 Thread.Sleep(2);
-            DeltaTime = stopwatch.ElapsedMilliseconds* SettingsMenue.GameSpeed;
+            DeltaTime = stopwatch.ElapsedMilliseconds * GameSpeed;
             OnOneCycle?.Invoke(DeltaTime);
         }
     }
@@ -68,19 +66,14 @@ public class Timer
         else
             Start();
     }
-    /// <summary>
-    /// Creats a new <see cref="Timer"/>, and Starts it
-    /// </summary>
-    /// <param name="interval"></param>
+    /// <summary> Creats a new <see cref="Timer"/>, and Starts it </summary>
     public static Timer StartNew(float interval)
     {
         Timer t = new(interval);
         t.Start();
         return t;
     }
-    /// <summary>
-    /// Resets the timer, and starts it again
-    /// </summary>
+    /// <summary> Resets the timer, and starts it again </summary>
     public void ReStart()
     {
         Reset();
@@ -89,13 +82,12 @@ public class Timer
     public void Start() => _paused = false;
     public void Reset() => timeSinceLast = 0;
     
-    /// <summary>
-    /// Pauses the timer
-    /// </summary>
+    /// <summary> Pauses the timer</summary>
     public void Stop() => _paused = true;
     
     /// <summary>
-    ///  if the interval has passed, will return true, and change the interval to <paramref name="newInterval"/>
+    ///  if the interval has passed, will return true, and change the interval 
+    ///  to <paramref name="newInterval"/>
     ///  </summary>
     /// <returns>true if elapsed seconds is larger then interval, else false</returns>
     public bool Check(float newInterval)
@@ -115,13 +107,11 @@ public class Timer
     /// <returns>true if elapsed seconds is larger then interval, else false</returns>
     public bool Check(bool change = true)
     {
-        if (timeSinceLast > _interval)
-        {
-            if (change)
-                timeSinceLast -= _interval;
-            return true;
-        }
-        return false;
+        if (timeSinceLast <= _interval)
+            return false; 
+        if (change)
+            timeSinceLast -= _interval;
+        return true;
     }
     /// <summary>
     /// changes the interval to the given one
@@ -136,7 +126,7 @@ public class Timer
         _paused = true;
         Time.OnOneCycle += Time_OnOneCycle;
         if (fighting)
-            Fight.FightPause += Fight_OnFightPause;
+            Fight.Instance.FightPause += Fight_OnFightPause;
     }
 
     

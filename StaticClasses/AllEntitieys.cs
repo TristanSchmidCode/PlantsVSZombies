@@ -1,179 +1,139 @@
-﻿using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using static PlantsVSZombies.Fight;
+﻿using System.Data;
+using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 
 namespace PlantsVSZombies;
-/// <summary>
-/// A static class that contains refrences to all entities currently active and events
-/// that are relivant
-/// </summary>
-public static class AllEntitys
+
+public class EntityHanderler: SingleTone<EntityHanderler>
 {
-    /// <summary>
-    ///  Trys to add an entity to all entitieys and its respective entity container
-    /// </summary>
-    /// <typeparam name="T"> </typeparam>
-    /// <param name="entity"> </param>
-    /// <returns>
-    /// Returns <see cref="true"/> if Succeeded to add <see cref="IEntity"/> <see cref="allEntitiyes"/> 
-    /// </returns>
-    public static bool AddEntities<T>(T entity) where T : IEntity
+    class EmptyEntity : IEntity
     {
-        Activate += entity.TakeAction;
-        if (entity is Plant plant)
-        {
-            bool ddd = (allEntitiyes.TryAdd(plant.Layer, plant) &&
-                allPlants.TryAdd(plant.Layer, plant));
-            if (ddd)
-            {
-                FightEnd += plant.Destroy;
-            }
-            return ddd;
-        }
-        if (entity is Zombie zombie)
-        {
-            bool ddd = (allEntitiyes.TryAdd(zombie.Layer, zombie) &&
-                allZombies[zombie.Hight].TryAdd(zombie.Layer, zombie) &&
-                allZombies2.TryAdd(zombie.Layer, zombie));
-            if (ddd)
-            {
-                FightEnd += zombie.Destroy;
-            }
-            return ddd;
-        }
-        if (entity is Bullet bullet)
-        {
-            bool ddd = (allEntitiyes.TryAdd(bullet.Layer, bullet) &&
-                allBullets.TryAdd(bullet.Layer, bullet));
-            if (ddd)
-            {
-                FightEnd += bullet.Destroy;
-            }
-            return ddd;
-        }
-        if (entity is Sun sun)
-        {
-            bool ddd = (allEntitiyes.TryAdd(sun.Layer, sun) &&
-                allSuns.TryAdd(sun.Layer, sun));
-            if (ddd)
-            {
-                FightEnd += sun.Destroy;
-            }
-            return ddd;
-
-        }
-        if (entity is Intoractible intor)
-        {
-            return
-               (allEntitiyes.TryAdd(intor.Layer, intor) &&
-               allIntoractibles.TryAdd(intor.Layer, intor));
-
-        }
-        return false;
+        public LayerID Layer => new(Layers.Background);
+        public void TakeAction() { }
+        public bool BeActedOn<T>(T d) where T : IAction => true;
+        public void Destroy() { }
     }
-    /// <summary>
-    ///  Trys to Remove an entity from all entitieys and its respective entity container
-    /// </summary>
-    /// <typeparam name="T"> </typeparam>
-    /// <param name="entity"> </param>
-    /// <returns>
-    /// Returns <see cref="true"/> if Succeeded to remove <see cref="IEntity"/> <see cref="allEntitiyes"/> 
-    /// </returns>
-    public static bool RemoveEntities<T>(T entity) where T : IEntity
+    static EmptyEntity _emptyEntity = new EmptyEntity();
+    readonly List<IEntity> _entities = [];
+    //a list of entities that are to be registered, this is used to avoid registering entities while iterating through the _entities list
+    readonly List<IEntity> _entitiesToAdd = [];
+    //a list of indexes of entities that are to be removed, this is used to avoid removing entities while iterating through the _entities list
+    readonly List<int> _entitiesToDelete = [];
+    //a dictionary of LayerID and the index of the entity in the _entities list, used for fast access to entities
+    readonly Dictionary<LayerID, int> _keyValuePairs = [];
+    public IEntity? GetEntity(LayerID? layer)
     {
-        Activate -= entity.TakeAction;
-        if (entity is Plant plant)
+        if (layer is null)
+            return null;
+        if (!_keyValuePairs.TryGetValue(layer.Value, out int index))
         {
-            bool ddd = (allEntitiyes.Remove(plant.Layer) &&
-                allPlants.Remove(plant.Layer));
-            if (ddd)
-            {
-                FightEnd -= plant.Destroy;
-            }
-            return ddd;
-
+            // if the entity is not found in the entities list, throw an exception
+            throw new KeyNotFoundException($"No entity found with layer {layer}");
         }
-        if (entity is Zombie zombie)
-        {
-            bool ddd = (allEntitiyes.Remove(zombie.Layer) &&
-               allZombies[zombie.Hight].Remove(zombie.Layer) && allZombies2.Remove(zombie.Layer));
-            if (ddd)
-            {
-                FightEnd -= zombie.Destroy;
-            }
-            return ddd;
-        }
-        if (entity is Bullet bullet)
-        {
-            bool ddd = (allEntitiyes.Remove(bullet.Layer) &&
-                allBullets.Remove(bullet.Layer));
-            if (ddd)
-            {
-                FightEnd -= bullet.Destroy;
-            }
-            return ddd;
-
-        }
-        if (entity is Sun sun)
-        {
-            bool ddd = (allEntitiyes.Remove(sun.Layer) &&
-                allSuns.Remove(sun.Layer));
-            if (ddd)
-            {
-                FightEnd -= sun.Destroy;
-            }
-            return ddd;
-
-        }
-        if (entity is Intoractible intor)
-        {
-            return
-               (allEntitiyes.Remove(intor.Layer) &&
-               allIntoractibles.Remove(intor.Layer));
-        }
-        return false;
+        return _entities[index];
     }
-    public static ReadOnlyDictionary<LayerID, IEntity> Getall()
+    void UnRegistorEntity(int index)
     {
-        ReadOnlyDictionary<LayerID, IEntity> D = new(allEntitiyes);
-        return D;
+        if (_entities.Count == 1) // if there is only one entity, it will be removed and the list cleared
+        {
+            _entities.Clear();
+            _keyValuePairs.Clear();
+            return;
+        }
+        if (_entities.Count - 1 == index) // if the entity is the last one in the list, it will be removed and the list will be shortened
+        {
+            _entities.RemoveAt(index);
+            return;
+        }
+
+        //swaps the entity with the last one in the list and removes it
+        IEntity lastEntity = _entities[^1];
+        _entities[index] = lastEntity;
+        _entities.RemoveAt(_entities.Count - 1);
+        _keyValuePairs[lastEntity.Layer] = index;
     }
-    public static ReadOnlyDictionary<LayerID, TEntity> Get<TEntity>()
+    void RegistorEntity(IEntity entity)
     {
-        if (allPlants is Dictionary<LayerID, TEntity> plants)
-        {
-            return new(plants);
-        }
-        if (allSuns is Dictionary<LayerID, TEntity> suns)
-        {
-            return new(suns);
-        }
-        if (allZombies2 is Dictionary<LayerID, TEntity> zombies)
-        {
-            return new(zombies);
-        }
-        if (allBullets is Dictionary<LayerID, TEntity> bullets)
-        {
-            return new(bullets);
-        }
-        if (allIntoractibles is Dictionary<LayerID, TEntity> intor)
-        {
-            return new(intor);
-        }
-        throw new Exception();
+        if (_keyValuePairs.TryGetValue(entity.Layer, out _))
+            return; // if the entity is already registered, do nothing
+        
+        _keyValuePairs.Add(entity.Layer, _entities.Count );
+        _entities.Add(entity);
     }
-    public static void ActivateAll() => Activate?.Invoke();
+    //adds all registering entities and removes all unRegistering entities
+    public void RegisterAndUnrgisterAll()
+    {
+        //registers all registering entities by the order they were added
+        for (int i = 0; i < _entitiesToAdd.Count; i++)
+           RegistorEntity(_entitiesToAdd[i]);
+        _entitiesToAdd.Clear();
+        //unregisters all unRegistering entities by the order they were added
+
+        if (_entitiesToDelete.Count == 0)
+            return; // if there are no entities to delete, do nothing
+        //sorts the indexes in descending order, so the indexes don't change while removing entities
+        _entitiesToDelete.Sort((a, b) => b.CompareTo(a));
+        for (int i = 0; i < _entitiesToDelete.Count; i++)
+        {
+           UnRegistorEntity(_entitiesToDelete[i]);
+
+        }
+        _entitiesToDelete.Clear();
+    }
     
-    static event OnActivate? Activate;
-    delegate void OnActivate();
+    public void ActivateAll()
+    {
+        int a = _entities.Count;
+        for (int i = 0; i < _entities.Count; i++)
+        {
+            _entities[i].TakeAction();
+            if (a != _entities.Count)
+                return;
+        }
+    }
+    //puts the entity in a list to be added next frame
+    public void AddEntity(IEntity entity)
+    {
+        if (entity is null)
+            throw new ArgumentNullException(nameof(entity), "Entity cannot be null");
+        if (_keyValuePairs.TryGetValue(entity.Layer, out _))
+            return;
+        _entitiesToAdd.Add(entity);
+    }
+    //puts the entity ina list to be removed next frame
+    public void RemoveEntity(IEntity entity)
+    {
+        if (entity is null)
+            throw new ArgumentNullException(nameof(entity), "Entity cannot be null");
+        if (!_keyValuePairs.TryGetValue(entity.Layer, out int index))
+            _entitiesToAdd.Remove(entity); // if the entity is not registered, remove it from the registering list if its there
+        else
+        {
+            _entitiesToDelete.Add(index);
+            //put a dummy entity in the place of the removed entity, so the index doesn't change
+            _entities[index] = _emptyEntity;
+            //removes the entity from the keyValuePairs dictionary, to make sure the empty entity isn't acsessed
+            _keyValuePairs.Remove(entity.Layer);
+        }
+    }
 
-    static readonly Dictionary<LayerID, IEntity> allEntitiyes = [];
-    static readonly Dictionary<LayerID, Sun> allSuns = [];
-    static readonly Dictionary<LayerID, Zombie> allZombies2 = [];
-    static public readonly Dictionary<LayerID, Zombie>[] allZombies = [[], [], [], []];
-    static readonly Dictionary<LayerID,  Plant> allPlants = [];
-    static readonly Dictionary<LayerID, Bullet> allBullets = [];
-    static readonly Dictionary<LayerID, Intoractible> allIntoractibles = [];
+    protected override void DestroyThis()
+    {
+        for (int i = _entities.Count - 1; i >= 0; i--)
+        {
+            IEntity entity = _entities[i];
+            entity.Destroy();
+        }
+        //destroys all registering entities
+        for (int i = _entitiesToAdd.Count - 1; i >= 0; i--)
+        {
+            IEntity entity = _entitiesToAdd[i];
+            entity.Destroy();
+            
+        }
+        _entitiesToAdd.Clear();
+        _entities.Clear();
+        _keyValuePairs.Clear();
+    }
 }
-    
+

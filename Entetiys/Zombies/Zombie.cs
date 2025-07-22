@@ -10,6 +10,15 @@ namespace PlantsVSZombies;
 
 public abstract class Zombie : ImageHaver, IEntity
 {
+    public static int ZombieCount { get; protected set; } = 0;
+    readonly static int[] zombieRows = new int[4];
+    public static int GetZombieRow(int row)
+    {
+        if (row < 0 || row >= zombieRows.Length)
+            throw new ArgumentOutOfRangeException(nameof(row), "Row must be between 0 and 4");
+        return zombieRows[row];
+    }
+
     protected virtual int Health
     {
         get { return health; }
@@ -18,7 +27,6 @@ public abstract class Zombie : ImageHaver, IEntity
             health = value;
         }
     }
-
     protected int health;
 
     
@@ -46,7 +54,9 @@ public abstract class Zombie : ImageHaver, IEntity
     }
     public void Destroy()
     {
-        AllEntitys.RemoveEntities(this);
+        EntityHanderler.Instance.RemoveEntity(this);
+        ZombieCount--;
+        zombieRows[Hight]--;
         RemoveImage();
     }
 
@@ -66,32 +76,41 @@ public abstract class Zombie : ImageHaver, IEntity
         this.damage = damage;
         attackTimer = new(attackSpeed);
     }
-    public abstract void Summon();
+    public virtual void Summon()
+    {
+        EntityHanderler.Instance.AddEntity(this);
+        ZombieCount++;
+        zombieRows[Hight]++;
+        _Summon();
+    }
+    protected virtual void _Summon() { }
 
 
-
-    /// <returns>Returns true if Zombies won</returns>
     public virtual void TakeAction()
     {
-        //if there is a plant infront of it, it will attack it. 
-        try
+        //if the zombie walks out of bounds, the zombies win
+        if (Screen.IsOutOfBounds(Pos - Reach))
         {
-            //checks if the the space is infront of it has a plant
-            if (Screen.GetPixel(Pos - Reach)[Layers.Plant] is LayerID layer)
-            {
-                if (attackTimer.Check())
-                {
-                    attackTimer.Reset();
-                    Attack attack = new(Layers.Plant, damage);
-                    AllEntitys.Get<Plant>()[layer].BeActedOn(attack);
-                }
-                return;
-            }
-        }catch (IndexOutOfRangeException)
-        { throw new FightLostException(); }
-
-        MoveBy((-Time.DeltaTime * movementSpeed, 0));
-        Hat?.MoveBy((-Time.DeltaTime * movementSpeed, 0));
+            Scene.Instance.SendMessage(Message.EndFight, FightEndState.FightLost);
+            return;
+        }
+        //checks if the the space is infront of it has a plant
+        if (Screen.GetPixel(Pos - Reach)[Layers.Plant] is not LayerID layer) {
+            //if not, it will move to the left
+            MoveBy((-Time.DeltaTime * movementSpeed, 0));
+            Hat?.MoveBy((-Time.DeltaTime * movementSpeed, 0));
+            return;
+        }
+        
+        if (!attackTimer.Check())
+            return;
+        
+        attackTimer.Reset();
+        Attack attack = new(Layers.Plant, damage);
+        //if the pixel infront of it is a plant, it will attack it
+        if (EntityHanderler.Instance.GetEntity(layer) is not Plant plant)
+            throw new FightLostException("Pixel with layer Plant not atributed with ID not atributed to a Plant"); 
+        plant.BeActedOn(attack);      
     }
     
     public bool BeActedOn<T>(T d) where T : IAction

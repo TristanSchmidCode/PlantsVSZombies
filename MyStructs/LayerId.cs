@@ -18,6 +18,7 @@ public enum Layers
     Special,
     BZombie,
     SZombie,
+    PlantSpace,
     Background,
 }
 

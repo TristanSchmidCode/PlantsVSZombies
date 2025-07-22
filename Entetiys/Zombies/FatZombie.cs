@@ -25,7 +25,7 @@ public class FatZombie(int hight) : Zombie(
             Hat = null;
         
         if (Health >=6 & Health-remainingDamage < 6)
-            ChangeImage(new ImageType(Layers.BZombie, "BloodyFatZombie"));
+            ChangeImage(Image.GetImage(Layers.BZombie, "BloodyFatZombie"));
          
         Health -= remainingDamage;
 
@@ -34,11 +34,10 @@ public class FatZombie(int hight) : Zombie(
         
         
     }    
-    public override void Summon()
-    {
+    protected override void _Summon()
+    {      
         attackTimer.Start();
-        AllEntitys.AddEntities(this);
-        ChangeImage(new ImageType(Layers.BZombie,"FatZombie",10));
+        ChangeImage(Image.GetImage(Layers.BZombie, "FatZombie", 10));
         Hat?.MoveTo(Pos + Displacement);
         Hat?.Summon();
 
