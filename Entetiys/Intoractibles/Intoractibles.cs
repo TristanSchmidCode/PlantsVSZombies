@@ -104,12 +104,11 @@ public abstract class Intoractible
         Frame.RemoveImage();
         Symol.RemoveImage();
     }
-    Intoractible() {
-        all.Add(this);
-    }
     public Intoractible(Position pos): this(pos, new Position(0,0)) { }
-    public Intoractible(Position pos, Position fromCenter) : this()
+    public Intoractible(Position pos, Position fromCenter)
     {
+        all.Add(this);
+
         Frame = new(Layers.Frame, pos);
         Symol = new(Layers.InerFrame, pos);
         Displacement = fromCenter;
@@ -118,8 +117,9 @@ public abstract class Intoractible
     public Intoractible(Position pos, Position fromCenter,Layers layer) : 
         this(pos,fromCenter,layer, null,null) { }
 
-    public Intoractible(Position pos, Position fromCenter, Layers layer, Image? symol, Image? frame) : this()
-    {  
+    public Intoractible(Position pos, Position fromCenter, Layers layer, Image? symol, Image? frame) 
+    {
+        all.Add(this);
         Symol = new ImageHaver(symol ?? new Image(), layer, pos);
         Frame = new ImageHaver(frame ?? new Image(), layer, pos);     
         Displacement = fromCenter;

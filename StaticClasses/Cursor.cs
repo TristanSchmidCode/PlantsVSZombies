@@ -87,9 +87,9 @@ public static class Cursor
             return;
         foreach ((Position pos, _) in plantSpace.Frame.Image.Pixels)
         {
-            if (!(pos + plantSpace.Frame.Pos).TryGetPixel(out Pixel pixel))
+            if (!(pos + plantSpace.Frame.Pos).TryGetPixel(out Pixel? pixel))
                 continue;
-            if (pixel[Layers.Sun] is not LayerID sunID)
+            if (pixel![Layers.Sun] is not LayerID sunID)
                 continue;
 
             if (EntityHanderler.Instance.GetEntity(sunID) is not Sun sun)
