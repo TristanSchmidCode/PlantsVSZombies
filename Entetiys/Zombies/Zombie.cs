@@ -109,7 +109,7 @@ public abstract class Zombie : ImageHaver, IEntity
         Attack attack = new(Layers.Plant, damage);
         //if the pixel infront of it is a plant, it will attack it
         if (EntityHanderler.Instance.GetEntity(layer) is not Plant plant)
-            throw new FightLostException("Pixel with layer Plant not atributed with ID not atributed to a Plant"); 
+            throw new InvalidOperationException("Pixel with layer Plant not atributed with ID not atributed to a Plant"); 
         plant.BeActedOn(attack);      
     }
     
