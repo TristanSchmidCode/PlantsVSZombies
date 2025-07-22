@@ -23,6 +23,8 @@ public class Program
 
     static void EnableANSI()
     {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            return;
         var handle = GetStdHandle(STD_OUTPUT_HANDLE);
         if (!GetConsoleMode(handle, out uint mode))
             return;
